@@ -11,7 +11,7 @@ def write_to_file(filename, content):
 
 
 write_to_file(
-    "day6/sample.txt", "Name: Tridib\nCompany: PwC\nFavourite Language: Python"
+    "day6/sample.txt", "Name: Tridib\nCompany: ABC\nFavourite Language: Python"
 )
 
 
@@ -25,5 +25,5 @@ content = read_from_file("day6/sample.txt")
 print(content)
 
 # Output: Name: Tridib
-#         Company: PwC
+#         Company: ABC
 #         Favourite Language: Python

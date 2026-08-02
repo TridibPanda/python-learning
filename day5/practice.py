@@ -44,7 +44,7 @@ print(result)
 
 
 # 5. Student information with default company
-def student_info(name, age, company="PwC"):
+def student_info(name, age, company="ABC"):
     print("Student Information\n")
     print(f"Name: {name}\n\nAge: {age}\n\nCompany: {company}")
 
@@ -53,4 +53,4 @@ student_info("Tridib", 25)
 # Output: Student Information
 # Name: Tridib
 # Age: 25
-# Company: PwC
+# Company: ABC

@@ -2,7 +2,7 @@
 name = "Tridib Panda"
 age = 25
 city = "Kolkata"
-company = "PwC"
+company = "ABC"
 salary = 1200000
 is_working = True
 

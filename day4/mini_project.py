@@ -2,7 +2,7 @@ student = {
     "Name": "Tridib",
     "Age": 25,
     "City": "Kolkata",
-    "Company": "PwC",
+    "Company": "ABC",
     "Skills": ["React Native", "Flutter", "Python"],
 }
 

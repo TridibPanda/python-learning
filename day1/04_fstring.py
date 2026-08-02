@@ -9,7 +9,7 @@ print(f"Hello {name}")
 # Output: Hello Tridib
 
 name = "Tridib"
-company = "PwC"
+company = "ABC"
 age = 25
 print(f"My name is {name}. I work at {company}. I am {age} years old.")
-# Output: My name is Tridib. I work at PwC. I am 25 years old.
+# Output: My name is Tridib. I work at ABC. I am 25 years old.

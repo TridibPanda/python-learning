@@ -1,5 +1,5 @@
 # This is a simple example of variable scope in Python.
-company = "PwC"
+company = "ABC"
 
 
 # This is a simple example of global variable scope in Python.
@@ -8,9 +8,9 @@ def show_company():
 
 
 show_company()
-# Output: PwC
+# Output: ABC
 print(company)
-# Output: PwC
+# Output: ABC
 
 
 # This is a simple example of local variable scope in Python.
