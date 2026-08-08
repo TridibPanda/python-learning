@@ -9,7 +9,7 @@ A 40-day Python learning roadmap with hands-on practice projects, examples, and 
 
 2. Open a terminal in this project folder:
    ```bash
-   cd /Users/tridibpanda/Desktop/Project/python-learning
+   cd path/to/python-learning
    ```
 
 3. Create a virtual environment in `.venv`:
