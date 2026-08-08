@@ -4,7 +4,7 @@
 When an object is created, Python allocates memory for the object, initializes it, and returns a reference to that object. The variable stores the reference, not the actual object itself.
 
 Memory Diagram
-Memory Diagram
+
 ```text
 Class
 
