@@ -297,3 +297,27 @@ No automatic cls
         ↓
 Independent operation logically grouped inside class
 ```
+
+### Q12. What is Encapsulation in OOP?
+Encapsulation is an OOP principle of bundling data and the methods that operate on that data within a class, while controlling how that data is accessed or modified. In Python, this can be implemented using conventions such as _, name mangling with __, and properties with getters and setters.
+
+### Q13. What is the difference between _value and __value in Python?
+A single leading underscore is a convention indicating that an attribute is intended for internal or protected-style use, but Python doesn't enforce it. A double leading underscore triggers name mangling, changing a name like __value to _ClassName__value. Name mangling helps prevent accidental name collisions, particularly when inheritance is involved.
+
+### Q14. What is the difference between public, private, and protected access modifiers in Python?
+In Python, access modifiers are not enforced by the language but are indicated by naming conventions:
+- **Public**: Attributes and methods are accessible from anywhere. They have no leading underscores (e.g., `value`).
+- **Protected**: Attributes and methods are intended for internal use within the class and its subclasses. They are indicated by a single leading underscore (e.g., `_value`).
+- **Private**: Attributes or methods with a double leading underscore trigger name mangling. This makes direct access using the original name unavailable and helps prevent accidental access or name collisions, especially with inheritance.
+
+### Q15. Can a subclass access a parent's __private attribute?
+No, a subclass cannot directly access a parent's private attribute (indicated by a double leading underscore) due to name mangling. However, it can access it indirectly through public or protected methods provided by the parent class. The private attribute is still part of the parent class, but its name is changed to include the class name, making it inaccessible using its original name in the subclass.
+
+### Q16. What does @property do?
+@property allows a method to be accessed like an attribute and is commonly used to provide controlled read access to internal data.
+
+### Q17. What does @property.setter do?
+A setter provides controlled write access to an internal attribute and can perform validation or other logic before updating it.
+
+### Q18. Why would you use @property instead of directly exposing a public variable?
+It provides controlled access to attributes while allowing validation, computation, or other logic during reading or writing, without changing the external attribute-style interface.
