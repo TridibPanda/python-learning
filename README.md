@@ -49,38 +49,10 @@ A 40-day Python learning roadmap with hands-on practice projects, examples, and 
 - Day 9 → OOP (Part 2)
 - Day 10 → OOP (Part 3)
 - Day 11 → OOP (Part 4)
-- Day 12 → OOP Interview
+- Day 12 → OOP (Part 5)
+- Day 13 → OOP (Part 6)
 
-### Advanced Python
-- Day 13 → Python Advanced
-- Day 14 → Type Hints
-- Day 15 → Decorators
-- Day 16 → Iterators
-- Day 17 → Generators
-- Day 18 → Context Managers
-- Day 19 → Asyncio
-- Day 20 → Requests & HTTP
 
-### Web & API Development
-- Day 21 → FastAPI
-- Day 22 → FastAPI Advanced
-- Day 23 → Pydantic
-- Day 24 → SQLModel
-- Day 25 → JWT
-- Day 26 → Dependency Injection
 
-### AI / Modern Python
-- Day 27 → OpenAI SDK
-- Day 28 → Prompt Engineering
-- Day 29 → Embeddings
-- Day 30 → Vector Database
-- Day 31 → RAG
-- Day 32 → LangChain
-- Day 33 → LangGraph
-- Day 34 → MCP
-- Day 35 → AI Agents
-- Day 36 → Multi-Agent
-- Day 37 → Production AI Project
-- Day 38 → Resume Project
-- Day 39 → Interview Questions
-- Day 40 → Mock Interview
+
+
