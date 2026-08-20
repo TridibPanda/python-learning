@@ -51,6 +51,8 @@ A 40-day Python learning roadmap with hands-on practice projects, examples, and 
 - Day 11 → OOP (Part 4)
 - Day 12 → OOP (Part 5)
 - Day 13 → OOP (Part 6)
+- Day 14 → OOP (Part 7)
+
 
 
 
