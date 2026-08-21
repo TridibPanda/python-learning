@@ -1,7 +1,7 @@
 class Student:
     school = "ABC School"  # Class variable
 
-    def __init__(self, name, age):  # Instance method
+    def __init__(self, name, age):  # Constructor method
         self.name = name  # Instance variable
         self.age = age  # Instance variable
 
