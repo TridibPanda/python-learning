@@ -45,13 +45,17 @@ A 40-day Python learning roadmap with hands-on practice projects, examples, and 
 - Day 7 → Exception Handling
 
 ### Object-Oriented Programming
-- Day 8 → OOP (Part 1)
-- Day 9 → OOP (Part 2)
-- Day 10 → OOP (Part 3)
-- Day 11 → OOP (Part 4)
-- Day 12 → OOP (Part 5)
-- Day 13 → OOP (Part 6)
-- Day 14 → OOP (Part 7)
+- Day 8 → Classes and Objects
+- Day 9 → Object Creation and Constructors
+- Day 10 → Instance Methods, Identity, Equality, and Copying
+- Day 11 → Class Methods, Static Methods, Encapsulation, and Properties
+- Day 12 → Inheritance, `super()`, and MRO
+- Day 13 → Polymorphism and Operator Overloading
+- Day 14 → Abstraction and Abstract Classes
+- Day 15 → OOP Principles in Practice
+
+### Python Advanced
+- Day 16 → Iterators
 
 
 
