@@ -56,6 +56,7 @@ A 40-day Python learning roadmap with hands-on practice projects, examples, and 
 
 ### Python Advanced
 - Day 16 → Iterators
+- Day 17 → Generators
 
 
 
