@@ -59,7 +59,7 @@ A 40-day Python learning roadmap with hands-on practice projects, examples, and 
 - Day 17 → Generators
 - Day 18 → Context Managers
 - Day 19 → Asyncio
-- Day 19 → Requests & HTTP
+- Day 20 → Requests & HTTP
 
 
 
