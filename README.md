@@ -60,6 +60,7 @@ A 40-day Python learning roadmap with hands-on practice projects, examples, and 
 - Day 18 → Context Managers
 - Day 19 → Asyncio
 - Day 20 → Requests & HTTP
+- Day 21 → Advanced OOP and Python Design Practices
 
 
 

@@ -1,0 +1,1620 @@
+OCI ARCHITECT ASSOCIATE — EXAM CHEAT SHEET  (1Z0-1072-25)
+==========================================================
+Read this file once = pass the exam.
+Facts only: numbers, limits, comparison tables, always/never rules, exam traps.
+==========================================================
+
+================================================================================
+INDEX — WHAT IS IN THIS NOTE
+================================================================================
+
+  Section 0:  OCI Architecture         — Regions, ADs, FDs, Realms, resource scope
+  Section 1:  IAM                       — Policies, verbs, domains, compartments
+  Section 2:  VCN                       — CIDR, subnets, gateways, security, routing
+  Section 3:  IP Management             — Ephemeral vs Reserved, BYOIP
+  Section 4:  Connectivity              — DRG, VPN, FastConnect, Peering, Transit
+  Section 5:  Load Balancer             — LB vs NLB, policies, health checks, WAA
+  Section 6:  DNS                       — Zones, records, private DNS, steering
+  Section 7:  Network Command Center    — 5 tools, VTAP, latency dashboard
+  Section 8:  Compute                   — Shapes, preemptible, burstable, DVH, autoscale
+  Section 9:  Object Storage            — Tiers, PARs, versioning, lifecycle
+  Section 10: Block Storage             — Tiers, backups, replication, NVMe vs BV
+  Section 10+:Block Volume Advanced     — Access types, clones, volume groups, cross-region/AD replication
+  Section 11: File Storage              — NFSv3, 8 EB, mount target, snapshots
+  Section 11+:File Storage Advanced     — Export options (first-match!), paths, cloning, replication, 4 security layers
+  Section 12: Vault and Key Management  — MEK/DEK, envelope encryption, HSM, BYOK, key rotation
+  Section 13: Monitoring/Alarms/ONS     — Metrics, alarm states, ONS topics, Events, Logging
+  Section 14: Cloud Guard + Security Zones — Detectors, problems, responders vs Security Zone blocking
+  Section 15: Autonomous Database       — ADW vs ATP, ECPU, serverless vs dedicated, auto features
+  Section 16: Resource Manager + Budgets— Stacks, jobs, plan/apply/destroy, budget alerts
+  Section 17: Additional Exam Traps     — 30 NEW traps (Traps 31–60)
+  ------
+  Quick Ref:  All Numbers and Limits
+  Quick Ref:  Always / Never Rules
+  Quick Ref:  Exam Traps 1–30 (original)
+
+================================================================================
+SECTION 0 — OCI ARCHITECTURE FUNDAMENTALS
+================================================================================
+
+CORE HIERARCHY (top to bottom):
+  Realm → Region → Availability Domain (AD) → Fault Domain (FD)
+
+DEFINITIONS:
+  Realm:  Group of regions sharing same Oracle infrastructure.
+          OC1 = Commercial (public cloud)
+          OC2 = Government (US Federal)
+  Region: Geographic area with 1 or more ADs.
+          Tenancy subscribes to regions individually.
+  AD:     Isolated data center within a region.
+          1–3 ADs per region (exam: most have 3, some have 1).
+          ADs in same region connected via low-latency Oracle network.
+          Failure in one AD does NOT affect other ADs.
+  FD:     Logical grouping of hardware WITHIN an AD.
+          Protects against hardware/power failure within same AD.
+          Always exactly 3 FDs per AD.
+          FDs do NOT share physical hardware with each other.
+
+RESOURCE SCOPE:
+  GLOBAL (not region-specific):   IAM (compartments, policies, users, groups, tags)
+  REGIONAL:                       VCN, Subnets (regional), Object Storage, LB, Reserved IPs
+  AD-SPECIFIC:                    Compute instances, Block Volumes, File Storage Mount Targets
+  TENANCY ROOT:                   Root compartment = top-level; exists always; cannot delete
+
+KEY NUMBERS TO MEMORISE:
+  ADs per region:           1–3
+  FDs per AD:               3 (always exactly 3)
+  Max compartment depth:    6 levels deep
+  Max VCNs per DRG:         300
+
+================================================================================
+SECTION 1 — IAM (Identity and Access Management)
+================================================================================
+
+GOLDEN RULE: OCI defaults to DENY everything. Policies only ALLOW. No explicit deny.
+
+POLICY SYNTAX:
+  Allow <subject> to <verb> <resource-type> in <location> [where <condition>]
+  Examples:
+    Allow group Admins to manage all-resources in tenancy
+    Allow group DevTeam to use instances in compartment Prod
+    Allow dynamic-group MyGroup to read object-family in tenancy
+
+VERB HIERARCHY (least → most powerful):
+  inspect → read → use → manage
+  inspect:  List resources only (no sensitive data shown)
+  read:     List + get resource details
+  use:      Read + use resource (no create/delete)
+  manage:   Full control — create, read, update, delete
+  TRAP: manage includes all lower verbs. inspect is LEAST powerful.
+
+SUBJECT TYPES:
+  group, dynamic-group, any-group, any-user, service, specific OCID
+  ALWAYS prefix domain name: domainName/GroupName
+  Omitting domain prefix = default domain implied
+  TRAP: any-group  = all users + instance principals + resource principals (RECOMMENDED)
+  TRAP: any-user   = same as any-group PLUS service principals (NOT recommended by Oracle)
+  TRAP: Use any-group over any-user — Oracle explicitly recommends any-group instead
+
+IDENTITY RESOURCE TYPE TRAP:
+  Identity resources have NO aggregate resource type.
+  Must list individually: users, groups, policies, dynamic-groups, identity-providers, etc.
+  (You CANNOT write "manage identity-family" — there is no aggregate for IAM)
+
+IDENTITY DOMAIN TYPES:
+  +---------------------------+--------------------------------------------------+
+  | Type                      | Key Facts                                        |
+  +---------------------------+--------------------------------------------------+
+  | Free                      | Default type; 2,000 users; basic OCI access      |
+  | Oracle Apps               | Auto-assigned with SaaS purchase; CANNOT create  |
+  | Oracle Apps Premium       | Hybrid IAM; max 10 non-Oracle apps              |
+  | Premium                   | ALL features; high limits; full enterprise IAM   |
+  |                           | Includes everything in Free + Oracle Apps +      |
+  |                           | Oracle Apps Premium + External User capabilities |
+  | External User             | Consumers/social login; non-employees            |
+  +---------------------------+--------------------------------------------------+
+
+DEFAULT DOMAIN:
+  - Automatically created in ROOT compartment when tenancy provisioned
+  - CANNOT delete, deactivate, or hide the default domain
+  - Auto-replicates to ALL subscribed regions (AUTOMATIC — no action needed)
+
+EXTRA DOMAINS:
+  - NOT auto-replicated
+  - Must manually enable replication per region
+
+DEFAULT GROUPS (cannot delete either one):
+  Domain Administrators:  Must always have at least 1 user
+  All Domain Users:       Hidden; auto-assigned to every user; cannot delete
+
+COMPARTMENTS:
+  - Global (not region-specific)
+  - Max 6 levels deep
+  - 1 resource lives in exactly 1 compartment (cannot be in two)
+  - Resources CAN interact cross-compartment
+  - Root compartment = tenancy level
+
+POLICY INHERITANCE:
+  - Policy attached to a compartment = applies to that compartment + ALL child compartments
+  - Policy attachment location = who can modify that policy
+  - TRAP: attach to tenancy = anyone with tenancy admin can change it
+
+QUOTA POLICY:
+  - Actions: set / unset / zero
+  - * wildcard = applies to ALL resource types in a service family
+  - Different from IAM policies (quotas limit capacity, not access)
+
+DYNAMIC GROUPS:
+  - Match resources (usually compute instances) by:
+      instance OCID
+      compartment OCID
+      tag value (defined tag)
+  - Used to give instances permissions without storing credentials
+
+CONDITIONAL POLICIES (where clause):
+  any{} = OR logic (at least one condition must match)
+  all{} = AND logic (all conditions must match)
+  request.*  = attributes of the incoming request
+  target.*   = attributes of the target resource
+  request.permission     = permission name in ALL CAPS (e.g., VOLUME_INSPECT)
+  request.operation      = exact API operation name
+
+NETWORK SOURCES:
+  - Restrict a policy so it only applies from specific network locations
+  - Specify on-prem CIDRs or VCN CIDRs in a named Network Source
+  - Use in policy: where request.networkSource.name = 'CorpNetwork'
+
+TAG-BASED ACCESS:
+  - Use defined tag conditions in where clause
+  - Allows policies to span compartments based on tags (not just location)
+
+================================================================================
+SECTION 2 — NETWORKING: VIRTUAL CLOUD NETWORK (VCN)
+================================================================================
+
+VCN BASICS:
+  - Spans ALL ADs in a region (VCN is a regional resource)
+  - CIDR range: /16 (largest — 65,536 IPs) to /30 (smallest — 4 IPs)
+  - Can assign multiple CIDR blocks to one VCN (max 16 IPv4 CIDRs per VCN; max 16 IPv6 prefixes per VCN)
+  - Local VCN traffic (within VCN): no route rule needed — automatic
+
+SUBNETS:
+  Regional subnet:   Spans all ADs in the region (recommended, modern default)
+  AD-specific subnet: Tied to one specific AD only
+  Public subnet:     Resources CAN have public IPs; has route to Internet Gateway
+  Private subnet:    Resources have private IPs only; no direct internet access; use NAT for outbound
+
+SECURITY LIST vs NSG:
+  +---------------------+-----------------------------+-----------------------------+
+  | Feature             | Security List               | NSG                         |
+  +---------------------+-----------------------------+-----------------------------+
+  | Scope               | Subnet level                | Individual VNIC/resource    |
+  | Applies to          | ALL VNICs in the subnet     | Only VNICs added to NSG     |
+  | Max per subnet/VNIC | 5 security lists per subnet | 5 NSGs per VNIC             |
+  | Source/Dest rules   | CIDR only                   | CIDR OR another NSG         |
+  | Stateful            | Yes (default)               | Yes (default)               |
+  | Stateless rules     | Configurable                | Configurable                |
+  +---------------------+-----------------------------+-----------------------------+
+  TRAP: NSG can reference another NSG as source/dest — Security List CANNOT.
+  TRAP: Both are stateful by default.
+
+  Standard port numbers:
+
+Port	Protocol	   Use for
+22	   SSH	      Secure remote login to Linux/Unix instances
+80	   HTTP	      Web traffic (unencrypted)
+443	   HTTPS	      Web traffic (encrypted/TLS)
+3389	   RDP	      Remote Desktop — Windows instances
+
+GATEWAY COMPARISON TABLE:
+  +--------------------+-------------------+--------------------------------------------+
+  | Gateway            | Direction         | Use Case                                   |
+  +--------------------+-------------------+--------------------------------------------+
+  | Internet Gateway   | Bidirectional     | Public subnet <-> Internet                 |
+  | NAT Gateway        | Outbound ONLY     | Private subnet -> Internet (no inbound)    |
+  | Service Gateway    | Private only      | OCI services without internet (Object Str) |
+  | Local Peering (LPG)| Bidirectional     | Same-region VCN-to-VCN peering             |
+  | DRG                | Bidirectional     | On-prem / cross-region / cross-VCN         |
+  +--------------------+-------------------+--------------------------------------------+
+  TRAP: NAT Gateway = OUTBOUND only. No inbound traffic allowed.
+  TRAP: Service Gateway = private traffic only. No internet routing.
+
+ROUTE TABLES:
+  - Attached to subnets (defines where traffic goes when leaving the subnet)
+  - Rules format: destination CIDR -> target gateway
+  - Local VCN CIDR: automatic (no explicit route rule needed)
+  - Public subnet internet route: 0.0.0.0/0 -> Internet Gateway
+  - Private subnet internet route: 0.0.0.0/0 -> NAT Gateway
+
+================================================================================
+SECTION 3 — NETWORKING: IP MANAGEMENT
+================================================================================
+
+EPHEMERAL vs RESERVED PUBLIC IP:
+  +---------------------+----------------------------+----------------------------+
+  | Feature             | Ephemeral IP               | Reserved IP                |
+  +---------------------+----------------------------+----------------------------+
+  | Assignment          | Auto-assigned at creation  | Created independently      |
+  | On termination      | RELEASED / LOST            | PERSISTS (survives)        |
+  | Moveable            | NO (tied to VNIC)          | YES (move between VNICs)   |
+  | During stop/start   | Retained                   | Retained                   |
+  | Per VNIC            | 1 (primary VNIC)           | 1 per VNIC                 |
+  +---------------------+----------------------------+----------------------------+
+  TRAP: Ephemeral IP is LOST when instance terminates. Reserved IP survives termination.
+
+BYOIP (Bring Your Own IP):
+  - Bring your own public IP prefix to OCI
+  - Minimum prefix size: /24 for IPv4
+  - Create Public IP Pools from BYOIP prefix for controlled IP assignment
+  - Useful for organisations that need specific IPs whitelisted externally
+
+================================================================================
+SECTION 4 — NETWORKING: CONNECTIVITY
+================================================================================
+
+--- BGP ---
+  FastConnect ALWAYS uses BGP (mandatory — no alternative routing protocol).
+  Site-to-Site VPN: supports static routing, BGP, or policy-based routing.
+  BGP = Border Gateway Protocol (dynamic routing; exchanges routes automatically).
+
+--- DRG (Dynamic Routing Gateway) ---
+  What it is: Virtual router that connects VCNs to on-prem, other regions, other VCNs.
+
+  ATTACHMENT TYPES (6):
+    VCN attachment
+    RPC (Remote Peering Connection)
+    IPsec VPN tunnel
+    Virtual Circuit (FastConnect)
+    Loopback attachment
+    Cross-tenancy VCN attachment
+
+  KEY NUMBER:
+    Up to 300 VCNs per DRG
+
+  DEFAULT ROUTE TABLES (2 auto-created when DRG is provisioned):
+    Table 1 — for VCN attachments:          learns routes from ALL attachment types
+    Table 2 — for RPC/VC/IPsec attachments: learns VCN routes ONLY
+
+  ROUTE CONFLICT PRIORITY (highest wins):
+    Static > VCN > Virtual Circuit (FastConnect) > IPsec (VPN) > RPC
+
+  ECMP (Equal Cost Multi-Path Routing):
+    OFF by default (must explicitly enable)
+    Enabled per DRG route table
+    Distributes traffic across multiple equal-cost circuits/tunnels via BGP
+    Use when you have multiple FastConnect circuits or multiple VPN tunnels
+
+  IMPORTANT RULE:
+    IPsec and Virtual Circuit routes are NEVER exported to other IPsec or VC attachments.
+    (On-prem routes stay between on-prem attachments and VCNs only)
+
+--- SITE-TO-SITE VPN ---
+  - Encrypted IPsec connection over public internet (not private)
+  - Connects on-prem network to OCI VCN
+
+  IPSEC MODES:
+    Tunnel Mode:    Encrypts ENTIRE packet (header + payload) — Oracle supports THIS
+    Transport Mode: Encrypts payload only — Oracle does NOT support this
+    TRAP: Always choose Tunnel Mode for Oracle VPN
+
+  TUNNEL FACTS:
+    Each VPN connection = 2 redundant tunnels (both active for HA)
+    Each tunnel has its own: public IP address + pre-shared key
+    Up to 8 IPsec connections per CPE (Customer Premises Equipment) public IP
+
+  ROUTING OPTIONS PER TUNNEL:
+    - Static routing (manually define routes)
+    - BGP routing (dynamic, learns routes automatically)
+    - Policy-based routing (define traffic selectors)
+    Best practice: use same routing type on both tunnels
+
+  IKE (Internet Key Exchange):
+    Supports IKE v1 and IKE v2
+    CPE behind NAT: change IKE identifier to CPE's private IP address
+
+--- FASTCONNECT ---
+  - Dedicated PRIVATE physical connection to OCI
+  - NEVER traverses public internet
+  - NO egress data transfer charges (unlike VPN)
+  - ALWAYS uses BGP (mandatory)
+
+  FastConnect = data transfer fully FREE (no ingress, no egress charges)
+VPN = ingress FREE, egress CHARGEABLE
+FastConnect = you pay for the port/circuit (dedicated line fee)
+VPN = you pay for egress data (internet transfer fee)
+
+  3 FASTCONNECT MODELS:
+  +---------------------------+---------------------+------------------------------------+
+  | Model                     | LOA Required?       | Key Notes                          |
+  +---------------------------+---------------------+------------------------------------+
+  | Oracle Partner            | NO                  | Pre-established link at partner    |
+  |                           |                     | Cheapest and most flexible         |
+  |                           |                     | Layer 2 or Layer 3 partner         |
+  | Third-Party Provider      | YES -> to carrier   | Carrier provisions cross-connect   |
+  | Co-location               | YES -> DC technician| Customer cage at FC location       |
+  +---------------------------+---------------------+------------------------------------+
+  LOA = Letter of Authorization
+  TRAP: Oracle Partner does NOT need LOA. The other two DO.
+
+  VIRTUAL CIRCUIT TYPES:
+    Private Virtual Circuit: connects to VCN; DRG required at OCI end
+    Public Virtual Circuit:  connects to OCI public services; NO DRG needed
+
+  ORACLE PARTNER TYPES:
+    Layer 2 partner: BGP terminates directly at Oracle; each VC needs different physical router
+    Layer 3 partner: BGP terminates at partner edge router; single VC is auto-redundant
+
+  FASTCONNECT REDUNDANCY:
+    Minimum 2 physical routers per FastConnect location
+    Third-party/colocation: use 2 VCs on 2 physical connections to 2 different edge devices
+    VPN as FastConnect backup: FastConnect takes priority when same routes advertised on both
+
+--- VCN PEERING ---
+  +--------------------+----------------------------+-----------------------------+
+  | Feature            | Local Peering              | Remote Peering              |
+  +--------------------+----------------------------+-----------------------------+
+  | VCN location       | Same region                | Different regions           |
+  | Gateway used       | LPG x2 (OR DRG v2)         | DRG x2 + RPC x2             |
+  | Cross-tenancy      | Yes (DRG v2)               | Yes (DRG v2 only)           |
+  | Traffic path       | Oracle backbone            | Oracle backbone             |
+  +--------------------+----------------------------+-----------------------------+
+  TRAP: LPG = Local Peering Gateway. RPC = Remote Peering Connection on DRG.
+
+--- TRANSIT ROUTING ---
+  Architecture: Hub-and-spoke topology
+  - Hub VCN connects to on-prem via single VPN or FastConnect connection
+  - Spoke VCNs connect to hub VCN via LPGs (Local Peering Gateways)
+  - Spoke VCNs reach on-prem through the hub (no direct on-prem connection needed)
+
+  REQUIREMENTS:
+    All VCNs MUST be in SAME REGION
+    Different tenancies: ALLOWED
+    6 route tables needed total (hub has extra route tables on LPGs and DRG)
+    LPG route table target: must be DRG or a private IP (NOT IGW, NAT, or SGW)
+
+================================================================================
+SECTION 5 — NETWORKING: LOAD BALANCER
+================================================================================
+
+PUBLIC vs PRIVATE LOAD BALANCER:
+  +------------------------+--------------------------+---------------------------+
+  | Feature                | Public LB                | Private LB                |
+  +------------------------+--------------------------+---------------------------+
+  | Subnet type            | Public subnet            | Private subnet            |
+  | IP address type        | Public IP                | Private IP only           |
+  | Internet accessible    | YES                      | NO (VCN-internal only)    |
+  | Subnets required       | 1 regional OR            | 1 subnet only             |
+  |                        | 2 AD-specific subnets    |                           |
+  | IPs consumed           | 2 private + 1 floating   | 3 private IPs             |
+  |                        | public IP                | (primary + standby +      |
+  |                        |                          | floating)                 |
+  +------------------------+--------------------------+---------------------------+
+
+LB vs NETWORK LOAD BALANCER (NLB):
+  +---------------------+---------------------------+-----------------------------+
+  | Feature             | Load Balancer (LB)        | Network Load Balancer (NLB) |
+  +---------------------+---------------------------+-----------------------------+
+  | OSI Layer           | Layer 4 + Layer 7         | Layer 3 + Layer 4           |
+  | Source IP preserved | NO (replaced by LB IP)    | YES (original source IP)    |
+  | Bandwidth           | 10–8,000 Mbps (configured)| Elastic (auto-scales)       |
+  | Latency             | Standard                  | Ultra-low                   |
+  | LB Policies         | Round Robin               | 5-tuple hash                |
+  |                     | Least Connection          | 3-tuple hash                |
+  |                     | IP Hash                   | 2-tuple hash                |
+  +---------------------+---------------------------+-----------------------------+
+  TRAP: NLB PRESERVES source IP. Regular LB REPLACES it with LB IP.
+  TRAP: NLB bandwidth = elastic/automatic. LB = must configure min and max.
+  Load Balancer	Protocols
+NLB (Network LB)	TCP, UDP, ICMP — Layer 3/4 only
+Regular LB	HTTP, HTTPS + TCP — Layer 4 + Layer 7
+WAA = Layer 7 LB only = HTTP and HTTPS only
+Protocol	OSI Layer	  Regular LB	  NLB
+TCP	       Layer 4	     YES	      YES
+UDP	       Layer 4	      NO	      YES
+HTTP/HTTPS Layer 7	     YES	      NO
+ICMP	     Layer 3	      NO	      YES
+
+LB SHAPE:
+  - Flexible shape ONLY (dynamic shape was discontinued)
+  - Minimum bandwidth = readiness (guaranteed minimum baseline)
+  - Maximum bandwidth = cost control (ceiling — won't exceed this)
+
+LB POLICIES:
+  Round Robin:      Default; distributes requests sequentially.
+                    Best for backends with similar capacity and similar request load.
+  Least Connection: Sends to backend with fewest active connections.
+                    Best for variable request load (some requests take much longer).
+  IP Hash:          Same client IP always goes to same backend.
+                    Client-IP-based sticky routing (not cookie-based).
+
+POLICY BEHAVIOR BY PROTOCOL:
+  TCP connections:       Policy applies to FIRST packet only; subsequent follow same connection
+  HTTP non-sticky:       Policy evaluated on EVERY new request
+  HTTP with sticky:      Cookie determines routing (overrides the policy choice)
+
+HEALTH CHECK DEFAULTS:
+  Interval (between checks):  10 seconds
+  Timeout (per check):        3 seconds
+  Retries:                    3
+  TRAP: Retries = 3 for BOTH unhealthy threshold AND for recovery (same number both ways).
+
+SSL MODES:
+  +---------------------+------------------------------------------------------------+
+  | Mode                | What Happens                                               |
+  +---------------------+------------------------------------------------------------+
+  | SSL Termination     | LB decrypts TLS; backend receives plain HTTP               |
+  | Point-to-Point      | LB decrypts then re-encrypts; backend receives TLS         |
+  | SSL Tunneling       | LB passes encrypted traffic as-is; NO decryption at LB    |
+  +---------------------+------------------------------------------------------------+
+
+SESSION PERSISTENCE:
+  Application Cookie:  Client sends existing app cookie; LB identifies backend by cookie
+  LB Cookie:           LB creates and manages its own session cookie
+
+WAA — WEB APPLICATION ACCELERATION (Layer 7 LB ONLY):
+
+  CACHING RULES:
+    ONLY caches:       HTTP 200 responses + GET or HEAD methods
+    Does NOT cache:    Responses with Set-Cookie header
+    Does NOT cache:    Responses with Cache-Control: no-cache header
+    Does NOT cache:    Responses with Cache-Control: private header
+    Does NOT cache:    Dynamic pages / personalised content
+    Max object size:   100 MB per cached object
+    Eviction policy:   LFU (Least Frequently Used)
+    Default TTL:       10 minutes
+    Cache purge:       IRREVERSIBLE — cannot undo once purged
+
+  COMPRESSION RULES:
+    Method:            gzip ONLY
+    TRAP: Cannot enable compression without ALSO enabling caching
+
+================================================================================
+SECTION 6 — DNS MANAGEMENT
+================================================================================
+
+DNS QUERY FLOW:
+  Browser -> Recursive DNS server -> Root Servers (.)
+  -> TLD servers (.com) -> Authoritative DNS -> IP address returned -> Browser loads page
+
+OCI DNS BENEFITS:
+  - Lowest latency (queries served via anycast from OCI global regions)
+  - Built-in DDoS(Distributed Denial of Service) protection (resilient against outages)
+  - Industry-leading propagation speed
+  - Import zones via standard BIND zone data format
+
+ZONE TYPES:
+  Public Zone:   Holds DNS records for public internet access
+  Private Zone:  Resolves DNS names for private addresses within VCN
+
+PUBLIC DNS ZONE — 3 STEPS:
+  Step 1: Create public DNS zone in OCI
+          (auto-creates NS record and SOA(Start of Authority) record)
+  Step 2: Delegate the zone
+          Copy OCI nameserver (NS) records -> paste into domain registrar DNS panel
+          (This makes OCI authoritative for your domain)
+  Step 3: Add DNS records to zone
+          (A, AAAA, CNAME, MX, TXT, etc.)
+
+DNS RECORD TYPES (know these for exam):
+  A:    Maps hostname -> IPv4 address
+  AAAA: Maps hostname -> IPv6 address
+  CNAME:Alias pointing to another hostname
+  MX:   Mail server for the domain
+  NS:   Nameserver record (auto-created with zone)
+  SOA:  Start of Authority (auto-created with zone)
+  TXT:  Text record (verification, SPF, DKIM)
+
+PRIVATE DNS (3 VCN OPTIONS):
+  Option 1 — Internet + VCN Resolver (default):
+    Resolves public internet hostnames AND instances within same VCN
+  Option 2 — Custom Resolver:
+    Use your own DNS server (on internet, in VCN, or on-prem)
+  Option 3 — Private DNS Zones:
+    Internal domain names only; not exposed to internet
+
+PRIVATE VIEWS:
+  - Collection of private DNS zones (logical grouping)
+  - ONE zone can only belong to ONE view (cannot be in multiple views)
+  - ONE view can be used by MULTIPLE resolvers (shareable across VCNs)
+  - VCN resolver always has a default view; can attach additional custom views
+
+HTTP REDIRECTS:
+  301 = Moved Permanently (permanent; tell search engines and browsers)
+  302 = Temporary redirect
+  MUST create CNAME record in DNS zone for redirect to work
+
+TRAFFIC MANAGEMENT STEERING POLICIES (5 types):
+  +---------------------------+----------------------------------------------------+
+  | Policy Type               | What It Does                                       |
+  +---------------------------+----------------------------------------------------+
+  | Failover                  | Primary -> Secondary when primary is unhealthy     |
+  | Load Balancer             | Weighted distribution (50/50, 10/90, custom ratio) |
+  | Geolocation Steering      | Route based on user's geographic location          |
+  | ASN Steering              | Route based on Autonomous System Number            |
+  | IP Prefix Steering        | Route based on originating IP prefix               |
+  +---------------------------+----------------------------------------------------+
+  Use cases:
+    Failover:      High availability, DR
+    Load Balancer: Cloud migration (start 10% new, increase gradually)
+    Geolocation:   Worldwide traffic distribution
+    ASN:           Mobile operator routing, zero-rating services
+    IP Prefix:     Canary testing (internal vs external users)
+
+================================================================================
+SECTION 7 — NETWORK COMMAND CENTER
+================================================================================
+
+5 TOOLS:
+  +---------------------------+----------------------------------------------------+
+  | Tool                      | What It Does                                       |
+  +---------------------------+----------------------------------------------------+
+  | Network Visualizer        | Interactive topology visualisation of all VCN      |
+  |                           | resources and their interconnections               |
+  | Network Path Analyzer     | Identifies VCN config issues; troubleshoots        |
+  |                           | connectivity problems between resources            |
+  | Flow Logs                 | Captures network traffic for monitoring/security   |
+  | VTAP                      | Mirrors all traffic from source to a target        |
+  | Capture Filter            | Rules defining what traffic VTAP/Flow Logs capture |
+  +---------------------------+----------------------------------------------------+
+
+VTAP (Virtual Test Access Point):
+  - Mirrors ALL traffic to/from a designated source to a selected target
+  - REQUIRES a Capture Filter to specify what to capture
+  - Use for: troubleshooting, security analysis, data monitoring
+
+INTER-REGION LATENCY DASHBOARD:
+  - Shows round-trip latency between ALL OCI region pairs
+  - Current view:    5-minute average; updates every 1 minute
+  - Historical view: last 30 days
+  - NOT tenancy-specific (same data visible to everyone; not private)
+  - NOT available in single-region realms
+
+================================================================================
+SECTION 8 — COMPUTE
+================================================================================
+
+SHAPE TYPES:
+  +----------------------+-------------------------------------------------------+
+  | Shape Type           | Key Facts                                             |
+  +----------------------+-------------------------------------------------------+
+  | Fixed Shape          | Cannot customise OCPUs/memory (fixed specs)           |
+  |                      | Supports Bare Metal (BM) + VM                         |
+  | Flexible Shape       | Customise OCPUs and memory within defined limits      |
+  |                      | VM ONLY (no Bare Metal flexible shapes)               |
+  |                      | Max: 64 GB memory per OCPU                            |
+  |                      | Network bandwidth scales automatically with OCPUs     |
+  +----------------------+-------------------------------------------------------+
+  TRAP: Flexible shapes are VM ONLY. Cannot use flexible on Bare Metal.
+
+BARE METAL (BM) vs VM:
+  Bare Metal: Dedicated physical server; no hypervisor overhead.
+              Use for: BYOL licensing, high-performance workloads, custom hypervisor.
+  VM:         Virtualised; runs on BM via Oracle hypervisor; multi-tenant; flexible.
+
+PREEMPTIBLE INSTANCES:
+  Cost:                 50% cheaper than equivalent on-demand instance
+  Termination:          Oracle can terminate at any time (if capacity needed)
+  Notice:               30 seconds warning before termination
+  Cannot:               Change shape or convert to on-demand
+  Support:              VM only (NO Bare Metal preemptible)
+
+BURSTABLE INSTANCES:
+  Purpose:              Baseline CPU with ability to burst higher for spikes
+  Baseline options:     12.5% or 50% of each OCPU
+  Billing:              Billed at BASELINE OCPU rate (even when bursting)
+  CPU bursts:           YES (when physical host has spare capacity)
+  Memory bursts:        NO — memory NEVER bursts
+  Burst guarantee:      NONE — burst only if host has spare capacity
+  Burst eligibility:    Average CPU must be below baseline over last 24 hours
+  Supported shapes ONLY: VM.Standard3.Flex, VM.Standard.E3.Flex, VM.Standard.E4.Flex, VM.Standard.E5.Flex
+
+DEDICATED VM HOST (DVH):
+  What it is:   Entire BM server dedicated to ONE customer's VMs (single-tenant)
+  Billing:      Billed for DVH as soon as created; NOT billed for VMs on it
+  Use cases:    Compliance/regulatory isolation; host-based BYOL licensing
+  NOT supported on DVH (exam trap — these 6 things cannot run on DVH):
+    1. Autoscaling
+    2. Capacity reservations
+    3. Instance configurations
+    4. Instance pools
+    5. Burstable instances
+    6. Remote migration
+
+VERTICAL SCALING:
+  What it is:   Change shape of a VM (scale up/down) without rebuilding
+  REBOOT:       Instance IS REBOOTED if running when shape is changed
+  Unchanged:    IP addresses, VNIC attachments, block volume attachments all stay
+
+INSTANCE CONFIGURATION:
+  What it is:   Template defining all settings to create compute instances
+  Contains:     OS image, shape, VNICs, storage, subnet, metadata
+  Does NOT include: Block volume contents (data is not copied)
+  Modify:       Cannot edit — must create a NEW instance configuration
+
+INSTANCE POOL:
+  What it is:   Group of instances in same region using same instance config
+  Config limit: Each pool has exactly ONE instance configuration
+  Features:     Attach/detach load balancers; deploy across multiple ADs
+  Resizing:     Can add/remove instances; adjustable via autoscaling policy
+
+AUTOSCALING:
+  Two policy types:
+    1. Metric-Based:   Triggered when CPU or memory utilisation exceeds threshold
+                       Adds/removes instances dynamically
+    2. Schedule-Based: Triggered at specific scheduled times
+                       For predictable workloads (e.g., office hours)
+
+  Setup steps (in order):
+    Step 1: Create Instance Configuration
+    Step 2: Create Instance Pool from that configuration
+    Step 3: Create Autoscaling Configuration (define policy)
+
+CAPACITY RESERVATIONS:
+  What it is:   Reserve compute capacity in a specific AD in advance
+  Unused bill:  85% of normal price (billed even when unused)
+  Used bill:    100% (normal price when instance created against reservation)
+  AD-specific:  Cannot move to different AD or different tenancy
+  Not with DVH: Cannot use capacity reservation with Dedicated VM Host
+
+BOOT VOLUME:
+  What it is:   Bootable OS disk for an instance
+  Persistence:  Persists after instance termination (data is NOT lost)
+  Min size:     50 GB , Max size	32 TB
+  Default size: 50 GB
+  Usage:        Can be detached and attached to another instance
+                Can be used to troubleshoot a stopped instance
+
+GPU INSTANCES:
+  GPUs available: NVIDIA A100, A10, V100, P100
+  Networking:     RDMA cluster networking (microsecond latency)
+  Cluster scale:  500+ GPUs in a single cluster
+
+================================================================================
+SECTION 9 — OBJECT STORAGE
+================================================================================
+
+KEY FACTS:
+  Data type:      Unstructured data (files, images, backups, logs, etc.)
+  Durability:     99.999999999% (11 nines)
+  Availability:   99.9%
+  Max object:     10 TiB (objects can be 0 bytes to 10 TiB)
+  Access:         HTTP/REST API
+  Service scope:  Regional (buckets are region-specific)
+  Namespace:      Unique per tenant (globally unique)
+  Buckets:        Unique per region within a tenancy
+
+STORAGE TIERS:
+  +---------------------+------------------+--------------------------------------+
+  | Tier                | Access Speed     | Key Facts                            |
+  +---------------------+------------------+--------------------------------------+
+  | Standard            | Instant          | Hot data; highest cost; no retrieval |
+  | Infrequent Access   | Instant          | Warm data; lower cost; retrieval fee |
+  | Archive             | Must restore 1st | Cold data; lowest cost; restore req  |
+  +---------------------+------------------+--------------------------------------+
+  Retrieval for Archive: must request restore before accessing (not instant)
+
+BUCKET TIER RULES (IMPORTANT EXAM TRAP):
+  Standard Bucket (default tier at bucket creation):
+    - Can contain objects in ANY tier: Standard, Infrequent Access, OR Archive
+    - Can change individual object tiers after upload
+    - Auto-tiering available
+
+  Archive Bucket:
+    - Can ONLY contain Archive tier objects
+    - Cannot change object tiers
+    - No auto-tiering
+
+  TRAP: Cannot change a bucket's default tier after creation. Fixed at creation.
+
+PRE-AUTHENTICATED REQUESTS (PARs):
+  What it is:   Temporary URL granting access to a bucket/object WITHOUT credentials
+  Expiry:       Has an expiry date/time
+  URL shown:    ONLY ONCE at creation — CANNOT retrieve it again
+  Lost URL:     Must create a new PAR (no way to recover old URL)
+  Credentials:  No OCI credentials needed to use the PAR URL
+
+MULTIPART UPLOAD:
+  Recommended for objects > 100 MB
+  Must be committed to finalise; abandoned parts waste storage space
+  Lifecycle policies can auto-delete uncommitted multipart uploads
+
+  OCI Multipart Upload part size limits:
+
+Limit	Value
+Max size per part	50 GiB
+Min size per part	10 MiB (except last part)
+Max number of parts	10,000
+Total max object size	10 TiB
+
+Upload Method	Max Object Size
+Single PUT upload	10 GiB
+Multipart upload	10 TiB (hard limit)
+
+
+File ≤ 10 GiB → can use single PUT or multipart
+File > 10 GiB up to 10 TiB → must use multipart
+File > 10 TiB → cannot upload at all — OCI Object Storage does not support it
+
+The 3-step multipart upload process:
+
+Initiate — create the multipart upload (get an upload ID)
+Upload parts — upload each part individually (each gets an ETag)
+Commit — call Complete Multipart Upload with the list of parts → OCI assembles the object
+
+
+OBJECT VERSIONING:
+  - Retains ALL previous versions of objects in a bucket
+  - Protects against accidental overwrites and deletions
+  - Can rollback to any earlier version
+
+RETENTION RULES:
+  - Applied at bucket level
+  - Makes storage IMMUTABLE: objects cannot be modified or deleted during retention period
+  - Use for: regulatory compliance, legal holds, governance requirements
+
+REPLICATION POLICIES:
+  - Automatic replication to same or different region
+  - Used for: disaster recovery, cross-region redundancy
+
+LIFECYCLE POLICIES:
+  - Automatically archive or delete objects based on age/rules
+  - Used for: cost optimisation, auto-tiering, cleaning up old objects
+
+================================================================================
+SECTION 10 — BLOCK STORAGE (BLOCK VOLUMES)
+================================================================================
+
+KEY NUMBERS:
+  Min size:              50 GB
+  Max size:              32 TB (32,768 GB)
+  Size increments:       1 GB
+  Default size:          1 TB (1,024 GB)
+  Max volumes/instance:  32 block volumes
+  Durability:            99.99% (4 nines)
+  Encryption:            AES-256 at rest — ALWAYS ON (cannot disable)
+
+PERFORMANCE TIERS (VPU = Volume Performance Units per GB per month):
+  +----------------------+-----------+----------+-------------+--------------+
+  | Tier                 | IOPS/GB   | Max IOPS | VPU/GB/mo   | Boot Volume? |
+  +----------------------+-----------+----------+-------------+--------------+
+  | Lower Cost           | 2         | 3,000    | 0 (free)    | NO           |
+  | Balanced (DEFAULT)   | 60        | 25,000   | 10          | YES          |
+  | Higher Performance   | 75        | 50,000   | 20          | YES          |
+  | Ultra High Perf      | 90–225    | Highest  | 30–120      | NO           |
+  +----------------------+-----------+----------+-------------+--------------+
+  TRAP: Lower Cost and Ultra High Performance are NOT available for boot volumes.
+  TRAP: Default tier = Balanced (NOT Lower Cost, even though Lower Cost sounds like default).
+  TRAP: Lower Cost VPU = 0 (no VPU charge — just storage cost).
+
+ATTACHMENT TYPES:
+  +-------------------+--------------------------------+-----------------------------+
+  | Type              | Pros                           | Cons/Limits                 |
+  +-------------------+--------------------------------+-----------------------------+
+  | iSCSI             | Maximum IOPS performance       | No in-transit encryption    |
+  | Paravirtualized   | Simpler setup                  | Lower max IOPS on large     |
+  |                   | Supports in-transit encryption | volumes (> 32 TB)           |
+  +-------------------+--------------------------------+-----------------------------+
+
+BACKUP TYPES:
+  Manual Backup (on-demand):
+    - Can run at any time
+    - Choose: incremental OR full backup
+    - Can backup when volume is attached OR detached
+    - Stored in Object Storage (encrypted)
+
+  Policy-Based Backup (scheduled):
+    Oracle-Defined Policies:
+    +----------+------------------------------------------------------------------+
+    | Policy   | Schedule + Retention                                             |
+    +----------+------------------------------------------------------------------+
+    | Bronze   | Monthly backups (12 month retention)                             |
+    |          | + Yearly backups (5 year retention)                              |
+    | Silver   | Everything in Bronze                                             |
+    |          | + Weekly backups (4 week retention)                              |
+    | Gold     | Everything in Silver                                             |
+    |          | + Daily backups (7 day retention)                                |
+    |          | ALL backups are INCREMENTAL                                      |
+    +----------+------------------------------------------------------------------+
+    TRAP: Gold = daily + weekly + monthly + yearly. ALL incremental.
+
+  BACKUP RULES (EXAM TRAPS):
+    First backup EVER for a volume    = always FULL (even if you select incremental)
+    First backup AFTER resizing       = always FULL
+    All subsequent backups            = incremental (only changes since last backup)
+
+CROSS-AD REPLICATION:
+  - Replicates volume to a different AD within the same region
+  - No network cost for replication
+  - Replica volume is billed at Lower Cost tier pricing
+  - Cannot resize the volume while replication is enabled
+  - NOT supported with customer-managed Vault (KMS) keys
+
+BLOCK VOLUME vs LOCAL NVMe:
+  +---------------------+-----------------------------+-----------------------------+
+  | Feature             | Block Volume                | Local NVMe                  |
+  +---------------------+-----------------------------+-----------------------------+
+  | Persistence         | Persists after termination  | LOST on instance termination|
+  | Attachment          | Network-attached            | Physically local to instance|
+  | Management          | Oracle-managed              | Customer-managed            |
+  | After stop/start    | YES (reattach or auto)      | YES (data survives stop)    |
+  | After termination   | YES (data persists)         | NO (data permanently lost)  |
+  +---------------------+-----------------------------+-----------------------------+
+  TRAP: Local NVMe data is PERMANENTLY LOST when instance terminates (not just stops).
+
+================================================================================
+SECTION 11 — FILE STORAGE (FILE SYSTEM SERVICE)
+================================================================================
+
+KEY FACTS:
+  Service type:   Fully managed elastic NFS file system service
+  Protocol:       NFS version 3.0 (NFSv3)
+  File locking:   NLM (Network Lock Manager) — supported
+  Auto-scale:     1 byte to 8 exabytes (no provisioning, no predefined size)
+  Encryption:     AES-256 at rest — ALWAYS ON (cannot disable)
+  In-transit:     TLS encryption — OPTIONAL
+  Durability:     99.99%
+
+ACCESS:
+  Within VCN:    Bare Metal instances, VMs, containers
+  External:      Via VCN peering, FastConnect, or IPsec VPN
+
+MOUNT TARGET:
+  - Acts as NFS endpoint inside the VCN
+  - Used by instances to mount file systems
+  - Resides in a subnet
+  - Multiple file systems can share one mount target
+
+SNAPSHOTS:
+  - Point-in-time snapshots for data protection
+  - Read-only reference (cannot directly modify a snapshot)
+  - Used for: backup, recovery, audit
+
+USE CASES:
+  - Enterprise lift-and-shift (apps requiring shared NFS file systems)
+  - Big data and analytics workloads
+  - Dev/test environments
+  - Container persistent storage
+  - Shared file systems across multiple instances
+
+================================================================================
+QUICK REFERENCE: ALL NUMBERS AND LIMITS
+================================================================================
+
+  OCI ARCHITECTURE:
+  ADs per region:                   1–3
+  FDs per AD:                       3 (always exactly 3)
+  Max compartment depth:            6 levels
+
+  NETWORKING:
+  VCN CIDR range:                   /16 (largest) to /30 (smallest)
+  Max NSGs per VNIC:                5
+  Max security lists per subnet:    5
+  Max VCNs per DRG:                 300
+  Max IPsec connections per CPE:    8 (per CPE public IP)
+  LB health check interval:         10 seconds
+  LB health check timeout:          3 seconds
+  LB health check retries:          3
+  LB min bandwidth:                 10 Mbps
+  LB max bandwidth:                 8,000 Mbps (8 Gbps)
+  WAA cache max object size:        100 MB
+  WAA default TTL:                  10 minutes
+
+  COMPUTE:
+  Preemptible discount:             50% cheaper than on-demand
+  Preemptible termination notice:   30 seconds
+  Burstable baseline options:       12.5% or 50%
+  Unused capacity reservation:      85% billing
+  Used capacity reservation:        100% billing
+  Flexible shape max memory/OCPU:   64 GB per OCPU
+
+  STORAGE:
+  Boot Volume min size:             50 GB
+  Boot Volume default size:         50 GB
+  Block Volume min size:            50 GB
+  Block Volume max size:            32 TB
+  Block Volume default size:        1 TB (1,024 GB)
+  Block Volume max per instance:    32 volumes
+  Block Volume durability:          99.99% (4 nines)
+  Block Volume Lower Cost IOPS:     2 IOPS/GB; max 3,000
+  Block Volume Balanced IOPS:       60 IOPS/GB; max 25,000
+  Block Volume Higher Perf IOPS:    75 IOPS/GB; max 50,000
+  Object Storage max object size:   10 TiB
+  Object Storage durability:        99.999999999% (11 nines)
+  Object Storage availability:      99.9%
+  Multipart upload recommended:     > 100 MB
+  Multipart upload required:        > 10 GiB (cannot use single PUT)
+  Multipart max part size:          50 GiB
+  Multipart min part size:          10 MiB (last part exempt — no minimum)
+  Multipart max number of parts:    10,000
+  Multipart total max object size:  10 TiB
+  Single PUT max object size:       10 GiB
+  File Storage max scale:           8 exabytes
+
+  DNS + MONITORING:
+  Inter-region latency current:     5-min average (updates every 1 min)
+  Inter-region latency history:     30 days
+  HTTP Permanent redirect code:     301
+  HTTP Temporary redirect code:     302
+
+  IAM:
+  Identity domain users (Free):     2,000
+
+================================================================================
+QUICK REFERENCE: ALWAYS / NEVER RULES
+================================================================================
+
+  ALWAYS:
+  - OCI defaults to DENY all access (must explicitly ALLOW in policy)
+  - FastConnect ALWAYS uses BGP (no alternative)
+  - Block Volumes ALWAYS AES-256 encrypted at rest
+  - File Storage ALWAYS AES-256 encrypted at rest
+  - First block volume backup ever = FULL backup
+  - First backup after resize = FULL backup
+  - DRG ECMP is OFF by default (must explicitly enable)
+  - Gold backup policy includes daily + weekly + monthly + yearly
+
+  NEVER:
+  - Oracle does NOT support IPsec Transport Mode (only Tunnel Mode)
+  - Oracle Partner FastConnect does NOT require LOA
+  - Lower Cost and Ultra High Performance tiers NOT available for boot volumes
+  - Archive Bucket CANNOT contain non-Archive tier objects
+  - Bucket default tier CANNOT be changed after creation
+  - PAR URL CANNOT be retrieved again after creation (shown once only)
+  - WAA cache purge is IRREVERSIBLE
+  - Burstable memory does NOT burst (only CPU bursts)
+  - Flexible shapes are NOT available for Bare Metal
+  - Dedicated VM Host does NOT support: autoscaling, capacity reservations,
+    instance configs, instance pools, burstable instances, remote migration
+  - Capacity reservations CANNOT move between ADs or tenancies
+  - Block Volume cross-AD replication NOT supported with customer-managed Vault keys
+  - WAA compression CANNOT be enabled without also enabling caching
+
+================================================================================
+QUICK REFERENCE: EXAM TRAPS (READ THESE CAREFULLY)
+================================================================================
+
+  TRAP 1:  Ephemeral IP is LOST on instance termination. Reserved IP survives.
+  TRAP 2:  NSG can reference another NSG as source/dest. Security List CANNOT.
+  TRAP 3:  NLB PRESERVES original source IP. Regular LB replaces it with LB IP.
+  TRAP 4:  NAT Gateway is OUTBOUND ONLY. No inbound traffic.
+  TRAP 5:  FastConnect = NO egress data charges. VPN = egress charges apply.
+  TRAP 6:  Oracle Partner FastConnect = NO LOA. Third-party/Colocation = YES LOA.
+  TRAP 7:  Flexible shapes are VM ONLY (no Bare Metal flexible shapes).
+  TRAP 8:  Default Block Volume tier = BALANCED (not Lower Cost).
+  TRAP 9:  Lower Cost and Ultra High Performance NOT available for boot volumes.
+  TRAP 10: PAR URL shown ONLY ONCE at creation. Lose it = create a new PAR.
+  TRAP 11: Extra identity domains are NOT auto-replicated. Must enable per region.
+  TRAP 12: Transit Routing — ALL VCNs MUST be in SAME REGION.
+  TRAP 13: DRG ECMP is OFF by default — must enable per route table.
+  TRAP 14: First backup ever = FULL (even if you select incremental mode).
+  TRAP 15: Burstable instances — only CPU bursts. Memory NEVER bursts.
+  TRAP 16: WAA compression CANNOT be enabled without caching enabled first.
+  TRAP 17: Identity resources have NO aggregate resource type in policies.
+           (Cannot use "identity-family" — must list each type individually)
+  TRAP 18: IKE v1 and v2 both supported. CPE behind NAT = use private IP as IKE ID.
+  TRAP 19: Dedicated VM Host — billed when created, NOT for VMs placed on it.
+  TRAP 20: Archive Bucket = Archive objects ONLY. Cannot mix tiers.
+  TRAP 21: Gold policy = ALL backups are incremental (even daily).
+  TRAP 22: Cross-AD Block Volume replication: no cost; replica billed at Lower Cost.
+  TRAP 23: Unused capacity reservation billed at 85%, NOT free.
+  TRAP 24: Flexible shape max memory = 64 GB per OCPU.
+  TRAP 25: LB health retries = 3 for BOTH unhealthy threshold AND recovery.
+  TRAP 26: Default domain replicates automatically. Extra domains = manual.
+  TRAP 27: Oracle does NOT support IPsec Transport Mode. Tunnel Mode only.
+  TRAP 28: Layer 3 FastConnect partner = single VC is auto-redundant (no extra config).
+  TRAP 29: Layer 2 FastConnect partner = each VC must use different physical router.
+  TRAP 30: 2 default route tables auto-created in DRG:
+           VCN table learns ALL routes; RPC/VC/IPsec table learns VCN routes only.
+
+================================================================================
+END OF CHEAT SHEET — YOU ARE READY TO PASS THE EXAM
+================================================================================
+
+================================================================================
+SECTION 10 ADDENDUM — BLOCK VOLUME: ADVANCED TOPICS
+================================================================================
+
+--- BLOCK VOLUME ACCESS TYPES ---
+  Three access types (set at attachment time):
+
+  +------------------------+----------+------------------+------------------+
+  | Attribute              | Read/Write| Read/Write       | Read-Only        |
+  |                        | (Default) | Shareable        | Shareable        |
+  +------------------------+----------+------------------+------------------+
+  | Write allowed          | YES       | YES              | NO               |
+  | Shareable              | NO        | YES              | YES              |
+  | Max instances          | 1         | 8                | 8                |
+  | Clustered FS required  | NO        | YES (e.g. OCFS2) | NO               |
+  | Default                | YES       | NO               | NO               |
+  +------------------------+----------+------------------+------------------+
+  TRAP: Read/Write Shareable requires a clustered file system (e.g. OCFS2)
+        or multiple instances writing at once WILL corrupt data.
+  TRAP: Max 8 instances for both Shareable types.
+  TRAP: Default access type = Read/Write (not shareable).
+
+--- BLOCK VOLUME CLONES ---
+  What it is:  Disk-to-disk copy of a volume; immediately usable
+  Usable:      Immediately (state = Available at once)
+  Background:  Data copy completes in background (up to 30 min)
+  Cross-region: NO — same region, same AD, same tenancy only
+  Simultaneous: Attached volume = 1 clone at a time
+                Detached volume = up to 10 clones simultaneously
+  Changes after clone: NOT copied to clone (independent copy)
+
+  CLONE vs BACKUP:
+  +---------------------+----------------------------+----------------------------+
+  | Feature             | Clone                      | Backup                     |
+  +---------------------+----------------------------+----------------------------+
+  | Speed               | Immediate (seconds)        | Minutes to hours           |
+  | Storage location    | Block Volume               | Object Storage             |
+  | Cost                | Higher (BV pricing)        | Lower (Object Storage)     |
+  | Cross-region        | NO                         | YES (copy backup)          |
+  | Cross-AD            | NO                         | YES (restore to any AD)    |
+  | Expiration          | Never (it is a live volume)| Policy backups expire      |
+  | Multiple restores   | NO (single copy each time) | YES (restore many times)   |
+  | Use for             | Fast dev/test duplication  | DR, compliance, retention  |
+  +---------------------+----------------------------+----------------------------+
+
+--- VOLUME GROUPS ---
+  What it is:  Group of block volumes + boot volumes managed as one unit
+  Max volumes: 32 volumes per group
+  Max size:    128 TB combined total
+  Cost:        FREE (no additional charge)
+  Each volume: Can only belong to 1 volume group at a time
+  Group backup: Point-in-time, crash-consistent backup of ALL volumes at once
+  Group clone:  Same-region, same-AD, same-tenancy (same limits as individual)
+  Delete group: Deletes GROUP only; individual volumes NOT deleted
+  Delete volume in group: Must REMOVE from group first, then delete
+
+--- CROSS-REGION REPLICATION ---
+  What it is:   Ongoing automatic ASYNC replication to another region
+  Supports:     Block volumes + boot volumes
+  Asynchronous: YES — slight lag; not real-time
+  vs Backup:    NOT a replacement for backups; complementary
+  Replica cost: Lower Cost block storage pricing (always, regardless of source tier)
+  Network cost: YES — inter-region data transfer charges apply
+  Restriction:  Cannot resize while enabled (disable → resize → re-enable)
+  Restriction:  NOT supported with customer-managed Vault keys
+  Activate:     Activate replica → clones it → new volume created in dest region
+  Region pairs: Source region determines which destination regions available
+  Prerequisite: Must subscribe to destination region first
+
+  CROSS-AD vs CROSS-REGION REPLICATION:
+  +---------------------+----------------------------+----------------------------+
+  | Feature             | Cross-AD Replication       | Cross-Region Replication   |
+  +---------------------+----------------------------+----------------------------+
+  | Scope               | Same region, diff AD       | Different regions          |
+  | Network cost        | NONE (intra-region)        | YES (egress charges)       |
+  | Replica cost        | Lower Cost pricing         | Lower Cost pricing         |
+  | Resize restriction  | Must disable first         | Must disable first         |
+  | Customer Vault keys | NOT supported              | NOT supported              |
+  | Downtime on source  | None                       | None                       |
+  +---------------------+----------------------------+----------------------------+
+  TRAP: Cross-AD = NO network cost. Cross-Region = YES network cost.
+
+--- BLOCK VOLUME AUTOTUNING ---
+  Two types of autotuning:
+  1. Performance-Based: Automatically increases VPU tier when attached + under load;
+                        automatically decreases tier when load drops
+  2. Detached-Volume:   Automatically adjusts VPU when volume is detached
+                        (reduces to lower tier to save cost while unused)
+
+================================================================================
+SECTION 11 ADDENDUM — FILE STORAGE: ADVANCED TOPICS
+================================================================================
+
+--- FILE STORAGE: 3 CORE CONSTRUCTS ---
+  File System:    Where files actually live (the storage layer)
+  Export:         NFS control layer — controls client access to file system;
+                  links a file system to a mount target
+  Mount Target:   NFS endpoint (IP or DNS name) in a subnet;
+                  highly available; one mount target can serve MULTIPLE file systems
+
+  RELATIONSHIP:
+    NFS Client → Mount Target → Export → File System
+    One mount target → many exports → many file systems (up to 100)
+    File system must have at least 1 export before instances can mount it
+
+--- NFS EXPORT OPTIONS ---
+  4 parameters per export option entry:
+  1. Source:  IP address or CIDR block of NFS client
+  2. Ports:   Privileged (root only) or Any
+  3. Access:  Read-Only or Read-Write
+  4. Squash:  All (remap all UIDs/GIDs to anon) /
+              Root (remap only root) /
+              None (no remapping)
+
+  Max export options: 100 per export
+
+  FIRST-MATCH RULE (CRITICAL EXAM TRAP):
+    The FIRST export option entry that matches the client IP is applied.
+    All remaining entries are IGNORED after first match.
+    MORE SPECIFIC rules (single IP) must come BEFORE more general rules (CIDR).
+    TRAP: 10.0.0.8 Read-Write listed AFTER 10.0.0.0/16 Read-Only →
+          client 10.0.0.8 gets Read-Only (matched first by the /16 rule)
+
+  DENY ACCESS COMPLETELY:
+    Ensure client IP/CIDR is NOT in any export option entry for that file system.
+    No match = no access.
+
+--- FILE STORAGE: 3 PATH TYPES ---
+  +-------------------+---------------------------+-------------------------------------+
+  | Path Type         | Where it lives            | Purpose / Example                   |
+  +-------------------+---------------------------+-------------------------------------+
+  | Export Path       | Mount Target level        | Identifies FS within mount target   |
+  |                   |                           | /FileSystem-export1                 |
+  |                   |                           | CANNOT edit after export created    |
+  | Mount Point Path  | Client instance           | Local directory where FS is mounted |
+  |                   |                           | /mnt/myfilesystem                   |
+  | File System Path  | Inside the file system    | Directories/files in the FS         |
+  |                   |                           | Snapshots: /.snapshot/snap-name     |
+  +-------------------+---------------------------+-------------------------------------+
+
+--- FILE STORAGE SNAPSHOTS ---
+  Consistent, point-in-time view of a file system
+  Access path: <mount-point>/.snapshot/<snapshot-name>
+  Initial storage: ZERO (references original data, no copy at creation)
+  Storage grows: Only for changed/new blocks since last snapshot
+  File recovery: Browse .snapshot directory and copy files back
+
+--- FILE STORAGE CLONING ---
+  What it is:   Creates a new file system from an existing file system or snapshot
+  Independent:  After clone, source and clone are completely independent
+  Initial cost: Zero (clone shares storage with source initially, COW model)
+  Storage grows: Only as clone diverges from source
+
+--- FILE STORAGE REPLICATION ---
+  Ongoing async replication of file system to another availability domain/region
+  Used for: Disaster recovery, data migration
+  Base copy: Initial full sync
+  Delta cycles: Subsequent syncs of only changed data
+
+--- FILE STORAGE: 4 SECURITY LAYERS ---
+  Layer 1: IAM policies (controls who can manage File Storage resources)
+  Layer 2: Network security (Security Lists / NSGs — controls TCP/UDP access)
+  Layer 3: NFS Export Options (controls per-client access at export level)
+  Layer 4: Unix security (POSIX file permissions on files/directories)
+  TRAP: All 4 layers work together — a client must pass ALL 4 to access a file
+
+
+================================================================================
+SECTION 12 — VAULT AND KEY MANAGEMENT (OCI VAULT / KMS)
+================================================================================
+
+WHAT IS VAULT:
+  OCI Vault = OCI's Key Management Service (KMS)
+  Used to: create, store, manage cryptographic keys and secrets
+  Keys protect data at rest in Object Storage, Block Volumes, File Storage, DB, etc.
+  Vault itself is a logical container for keys and secrets
+
+KEY TYPES:
+  +--------------------+---------------------------------------------------+
+  | Type               | Details                                           |
+  +--------------------+---------------------------------------------------+
+  | Software Key       | Stored in software; cheaper; lower security       |
+  | HSM Key (Managed)  | Stored in Hardware Security Module (physical HW)  |
+  |                    | Tamper-resistant; FIPS 140-2 Level 3 certified    |
+  |                    | Higher security; cannot be exported               |
+  +--------------------+---------------------------------------------------+
+  TRAP: HSM keys CANNOT be exported — they never leave the HSM.
+
+KEY ALGORITHMS:
+  AES:   Symmetric; used for data encryption (AES-128, AES-192, AES-256)
+  RSA:   Asymmetric; used for digital signatures and data encryption
+  ECDSA: Asymmetric; used for digital signatures
+
+ENCRYPTION MODEL (2 layers):
+  Master Encryption Key (MEK):  Stored in Vault; never touches your data directly
+  Data Encryption Key (DEK):    Encrypts the actual data; wrapped (encrypted) by MEK
+  This is called ENVELOPE ENCRYPTION.
+  TRAP: Data is encrypted by DEK. DEK is encrypted by MEK. MEK lives in Vault.
+
+KEY ROTATION:
+  Rotating a key creates a new KEY VERSION
+  Old versions kept so existing data can still be decrypted
+  New data encrypted with new key version
+  Oracle-managed keys rotate automatically
+  Customer-managed keys: you control rotation schedule
+
+BYOK (Bring Your Own Key):
+  Import your own key material into OCI Vault
+  Use existing enterprise keys from on-prem HSM
+
+VAULT TYPES:
+  Virtual Private Vault: dedicated HSM partition; isolated; higher cost
+  Default Vault:         shared; lower cost; good for most use cases
+
+SECRETS:
+  Store sensitive config data (passwords, tokens, API keys) in Vault
+  Secrets have versions; can rotate secret values
+  Applications retrieve secrets at runtime (no hard-coding)
+
+CROSS-AD REPLICATION RESTRICTION (exam trap repeated):
+  Block Volume cross-AD and cross-region replication:
+  NOT supported when volume encrypted with customer-managed Vault keys
+
+================================================================================
+SECTION 13 — MONITORING, ALARMS AND NOTIFICATIONS
+================================================================================
+
+--- OCI MONITORING SERVICE ---
+  Collects metrics from OCI resources automatically (no agent for most services)
+  Metrics: numerical data points over time (CPU%, memory%, IOPS, network bytes, etc.)
+  Namespace: logical grouping of metrics by service
+    e.g. oci_computeagent, oci_blockstore, oci_lbaas
+
+  METRIC FORMAT:
+    Namespace / Metric name / Dimensions (e.g. resourceId, region)
+    Time-series data; queried using MQL (Metrics Query Language)
+
+  METRIC RETENTION:
+    Raw data: 90 days
+    1-minute resolution data: last 90 days
+
+--- ALARMS ---
+  What it is:   Rule that evaluates a metric query; fires when threshold is crossed
+  Destination:  ONS Topic (Notifications) — sends notifications when alarm fires
+
+  ALARM STATES (only 2 actual states):
+    OK:         Metric is within acceptable range (threshold not crossed)
+    FIRING:     Metric crossed threshold — alarm is active
+
+  ALARM MESSAGE/NOTIFICATION TYPES (sent on transitions):
+    OK_TO_FIRING: Alarm just crossed threshold → now FIRING
+    FIRING_TO_OK: Alarm resolved normally → back to OK
+    REPEAT:       Alarm still FIRING (sent at configured repeat interval)
+    RESET:        Alarm returned to OK after internal reset (metric stream was absent)
+    TRAP: RESET is a MESSAGE TYPE, NOT an alarm state. State is OK when RESET fires.
+    TRAP: Internal reset = 10 min period; alarm stops tracking an absent metric stream.
+
+  ALARM CONFIGURATION:
+    Query:        MQL metric query (e.g. CpuUtilization > 80)
+    Trigger delay: How long metric must exceed threshold before alarm fires
+    Notifications: ONS topic to notify when alarm fires or resolves
+    Suppression:  Can suppress alarm during maintenance windows
+
+  IMPORTANT:
+    Alarms use ONS Topics to deliver notifications.
+    One alarm can notify multiple subscribers via one topic.
+
+--- ONS — OCI NOTIFICATIONS SERVICE ---
+  What it is:   Publish-Subscribe (Pub/Sub) messaging service
+  Topic:        Named channel for messages (alarms, events publish TO a topic)
+  Subscription: Endpoint subscribed to a topic to receive messages
+
+  SUBSCRIPTION PROTOCOLS (what receives the message):
+    Email
+    HTTPS (webhook / REST endpoint)
+    PagerDuty
+    Slack
+    SMS (limited regions)
+    OCI Functions (serverless function triggered)
+    OCI Queue
+
+  FLOW:
+    Source (Alarm / Events Rule) → publishes to ONS Topic
+    ONS Topic → delivers to all subscriptions
+    Subscriptions → notify Email / Slack / HTTPS / Function / etc.
+
+  TRAP: ONS is the DELIVERY mechanism. Alarms and Events are the SOURCES.
+
+--- OCI EVENTS SERVICE ---
+  What it is:   Automatically captures state changes in OCI resources
+  Trigger:      When an OCI resource changes state (created, terminated, updated, etc.)
+  Actions:      Send to ONS Topic / Invoke Function / Stream to OCI Streaming
+
+  EVENT RULE:
+    Condition:    Filter by event type, resource type, compartment, tags
+    Action:       What to do when condition matches (notify, trigger function, etc.)
+
+  EXAMPLES:
+    Bucket created → notify security team via ONS
+    Instance terminated → trigger cleanup function
+    Volume backup completed → send email
+
+  TRAP: Events = resource state changes. Alarms = metric threshold breaches.
+        Different things. Used together for full observability.
+
+--- LOGGING SERVICE ---
+  Captures log data from OCI resources and applications
+  Log types:
+    Audit Logs:    Every API call to OCI recorded; kept 90 days; cannot disable
+    Service Logs:  Logs from OCI services (LB access logs, Object Storage logs, Flow Logs)
+    Custom Logs:   Application logs pushed from compute instances via agent
+
+  AUDIT LOG RETENTION: 90 days (always enabled, cannot turn off)
+
+  OCI LOGGING ANALYTICS: Advanced log analytics and visualisation service (separate from Logging)
+
+================================================================================
+SECTION 14 — CLOUD GUARD AND SECURITY ZONES
+================================================================================
+
+--- CLOUD GUARD ---
+  What it is:   OCI's security posture management service
+  Purpose:      Detects security problems and can auto-remediate them
+
+  4 KEY COMPONENTS:
+    Targets:    The OCI compartments/resources Cloud Guard monitors
+    Detectors:  Rules that identify problems (misconfigs, suspicious activity)
+                Detector types: Config Detector (wrong settings) /
+                                Activity Detector (suspicious API calls)
+    Problems:   Issues found by detectors (e.g. public bucket, open port 22)
+    Responders: Actions taken when problems are found
+                Responder types: Notification / Function / Manual action
+
+  DETECTOR TYPES:
+    Configuration Detector: checks resource configs against security best practices
+                            e.g. "bucket is public", "instance has public IP", "port 22 open to 0.0.0.0/0"
+    Activity Detector:      monitors API activity logs for suspicious patterns
+                            e.g. excessive failed logins, unusual data access
+
+  RESPONDER TYPES:
+    Notification Responder: send notification via ONS
+    Function Responder:     trigger OCI Function to auto-remediate
+    Manual Responder:       flag for human review
+
+  RISK LEVELS: Critical, High, Medium, Low, Minor
+
+  TRAP: Cloud Guard monitors and detects but the RESPONDER does the action.
+  TRAP: Cloud Guard uses Audit Logs — must have Audit Logs enabled (they always are).
+
+--- SECURITY ZONES ---
+  What it is:   Compartment with ENFORCED Oracle security policies
+  Effect:       Resources in a Security Zone CANNOT violate the zone's security policies
+  Example policies (you CANNOT do this in a Security Zone):
+    - Create a PUBLIC bucket
+    - Disable encryption
+    - Assign a public IP to a compute instance
+  TRAP: Security Zone prevents creating insecure resources — not just detects them.
+  TRAP: Unlike Cloud Guard (which detects after the fact), Security Zone BLOCKS at creation.
+
+================================================================================
+SECTION 15 — AUTONOMOUS DATABASE
+================================================================================
+
+TWO TYPES:
+  ADW (Autonomous Data Warehouse): for analytics, data warehousing, batch reports
+  ATP (Autonomous Transaction Processing): for OLTP, mixed workloads, transactions
+
+DEPLOYMENT OPTIONS:
+  +----------------------+--------------------------------------------------+
+  | Type                 | Description                                      |
+  +----------------------+--------------------------------------------------+
+  | Serverless           | Fully managed; Oracle controls infrastructure    |
+  |                      | Auto-scales; billed per ECPU-hour consumed       |
+  | Dedicated (Exadata)  | Customer has dedicated Exadata hardware          |
+  |                      | Fully isolated; for high security / compliance   |
+  +----------------------+--------------------------------------------------+
+
+COMPUTE UNITS:
+  ECPU: Elastic CPU (current standard for Autonomous DB)
+  OCPU: Older unit (1 OCPU = 2 ECPUs)
+  TRAP: New Autonomous DB uses ECPU, not OCPU.
+
+KEY FEATURES (always tested):
+  Auto-scaling:     Automatically scales up/down compute during peak loads
+  Auto-indexing:    ML-driven automatic creation/dropping of indexes
+  Auto-patching:    Zero-downtime patching applied automatically
+  Self-healing:     Automatically recovers from failures
+  Backup:           Automatic daily backup; 60-day retention
+  Data Safe:        Built-in security assessment, data masking, audit
+
+ORACLE APEX:
+  Available free inside Autonomous DB
+  Low-code application development platform
+
+CONNECTIVITY OPTIONS:
+  mTLS (Mutual TLS):    default; requires wallet (certificate-based auth)
+  TLS (1-way):          available when using private endpoint or access control list
+
+DEPLOYMENT CHOICES:
+  Public endpoint:  accessible over internet; secure with ACL + mTLS
+  Private endpoint: inside VCN; no public IP; most secure
+
+TRAP: Autonomous DB is FULLY managed — no patching, no backup management by customer.
+TRAP: ADW = Analytics/DW. ATP = OLTP/transactions.
+TRAP: Auto-scaling in Autonomous = elastic (scales up/down automatically within configured max).
+
+================================================================================
+SECTION 16 — RESOURCE MANAGER AND BUDGETS
+================================================================================
+
+--- RESOURCE MANAGER (OCI TERRAFORM) ---
+  What it is:   OCI's native Infrastructure-as-Code (IaC) service
+  Based on:     HashiCorp Terraform (fully compatible)
+  Purpose:      Provision and manage OCI resources using code
+
+  KEY CONCEPTS:
+    Stack:        A collection of Terraform configuration files + state
+                  Represents one deployment (e.g. one environment)
+    Job:          An action run on a stack
+    Plan:         Preview what changes Terraform will make (dry run)
+    Apply:        Execute the Terraform config to create/update resources
+    Destroy:      Tear down all resources managed by the stack
+    State file:   Records current infrastructure state; managed by Resource Manager
+
+  TRAP: Stack = the unit of deployment. Job = the action (plan/apply/destroy).
+  TRAP: Plan does NOT make changes — it only shows what WOULD happen.
+  TRAP: Resource Manager stores state file automatically (no S3 bucket needed like raw Terraform).
+
+--- BUDGETS ---
+  Purpose:      Set spending alerts on OCI costs
+  Scope:        Tenancy, compartment, or tag-based
+  Types:        Cost budget (actual spend) / Forecast budget (projected spend)
+  Alert:        Email notification when spend reaches a % of budget threshold
+  TRAP: Budgets ALERT only — they do NOT stop or block resource creation.
+
+================================================================================
+SECTION 17 — ADDITIONAL EXAM TRAPS (NEW)
+================================================================================
+
+  TRAP 31: Block Vol Read/Write Shareable needs clustered FS (OCFS2) or data corrupts.
+  TRAP 32: Max 8 instances can share a Read/Write Shareable or Read-Only Shareable volume.
+  TRAP 33: Block Volume clone is immediately usable; background copy takes up to 30 min.
+  TRAP 34: Clone = same region, same AD, same tenancy only. Cannot cross region or AD.
+  TRAP 35: Clone attached volume = only 1 at a time. Detached = up to 10 simultaneously.
+  TRAP 36: Backup stored in Object Storage (cheaper). Clone stored as Block Volume (costly).
+  TRAP 37: Volume Group max = 32 volumes, 128 TB total combined. Free of charge.
+  TRAP 38: Deleting a Volume Group does NOT delete the individual volumes.
+  TRAP 39: Cross-AD replication = NO network cost. Cross-Region = YES network cost.
+  TRAP 40: Both cross-AD and cross-region replicas billed at Lower Cost tier pricing.
+  TRAP 41: NFS Export Options FIRST-MATCH rule — order matters, specific before general.
+  TRAP 42: Export Path CANNOT be edited after the export is created.
+  TRAP 43: File Storage snapshots initially consume ZERO storage; grow only with changes.
+  TRAP 44: Access snapshots via: <mount-point>/.snapshot/<snapshot-name>
+  TRAP 45: File Storage has 4 security layers: IAM, Network (NSG/SL), Export Options, Unix.
+  TRAP 46: HSM keys in Vault CANNOT be exported (never leave the HSM hardware).
+  TRAP 47: Envelope encryption: data encrypted by DEK; DEK encrypted by MEK (in Vault).
+  TRAP 48: Audit Logs are ALWAYS enabled; 90-day retention; cannot disable.
+  TRAP 49: Events = resource STATE changes. Alarms = metric THRESHOLD breaches.
+  TRAP 50: Security Zone BLOCKS insecure resource creation. Cloud Guard DETECTS problems.
+  TRAP 51: Cloud Guard: Detectors find problems. Responders take action on problems.
+  TRAP 52: Autonomous DB uses ECPU (not OCPU). 1 OCPU = 2 ECPUs.
+  TRAP 53: ADW = analytics/data warehouse. ATP = OLTP/transactions.
+  TRAP 54: Resource Manager Plan job = preview only (no changes made).
+  TRAP 55: Budgets ALERT on spend — they do NOT block resource creation.
+  TRAP 56: ONS is the DELIVERY mechanism. Alarms and Events are the SOURCES.
+  TRAP 57: Block Volume cross-region replication: asynchronous (NOT real-time sync).
+  TRAP 58: Replication is NOT a replacement for backup — they are complementary.
+  TRAP 59: Must subscribe to destination region before enabling cross-region replication.
+  TRAP 60: File Storage Mount Target is highly available (HA); 1 mount target serves many FSes.
+
+
+
+==================================================================================
+1. The listening endpoint allows the DNS Resolver to answer DNS queries coming from outside the VCN such as on-prem systems and other resolvers.
+2. The allowable VCN size range is /16 to /30.
+3. Create a dynamic group. In the dynamic group definition, you provide the matching rules to specify which instances you want to allow to make API calls against services. After you have created a dynamic group, you need to create policies to permit the dynamic groups to access Oracle Cloud Infrastructure services.
+4. Your tenancy automatically has a policy that gives the Administrators group access to all of the cloud resources in your tenancy.
+5. A basic feature of policies is the concept of inheritance: Compartments inherit any policies from their parent compartment. Policies that apply to resources in Compartment A also apply to resources in Compartment B and Compartment C.
+6. An application load balancer is a context-aware load distribution that directs requests based on any single variable as easily as requests based on a combination of variables. An application load balancer works on layer 7, so it supports both HTTP and HTTPS. It can distribute HTTP and HTTPS traffic based on host-based or path-based rules.
+7. Geolocation steering policies distribute DNS traffic to different endpoints based on the location of the end user.
+8. NSGs(Network Security Groups) let you separate your VCN's subnet architecture from your application security requirements.
+9. Preemptible instances behave the same as regular compute instances, but the capacity is reclaimed when it's needed elsewhere, and the instances are terminated. If your workloads are fault-tolerant and can withstand interruptions, then preemptible instances can reduce your costs.
+10. The Oracle Cloud Infrastructure OS Management Hub service allows you to manage and monitor updates and patches for the operating system environments on your instances.
+11. Auth tokens are Oracle-generated token strings that you can use to authenticate with third-party APIs that do no support Oracle Cloud Infrastructure's signature-based authentication. Auth tokens do not expire. Each user can have up to two auth tokens at a time.
+12. There are two Retention rule types- Time-Bound rules have a user-defined duration. Object modification is prevented for the duration specified. Duration is applied to each object individually, and is based on the object's Last Modified timestamp. Indefinite rules have no duration or expiration. Object modification is prevented until an indefinite rule is deleted.
+13. It's important to understand retention duration for time-bound rules. Even though you are creating retention rules for a bucket, the duration of a rule is applied to each object in the bucket individually, and is based on the object's Last Modified timestamp.
+14. Use the File Storage service when your application or workload includes big data and analytics, media processing, or content management, and you require Portable Operating System Interface (POSIX)-compliant file system access semantics and concurrently accessible storage. The File Storage service is designed to meet the needs of applications and users that need an enterprise file system across a wide range of use cases.
+15. Site-to-Site VPN provides a site-to-site IPSec connection between your on-premises network and your virtual cloud network (VCN). The IPSec protocol suite encrypts IP traffic before the packets are transferred from the source to the destination and decrypts the traffic when it arrives. You can set up multiple connections between your on-premises network and VCN.
+16. Object Storage is a regional service. The Standard tier is the primary, default storage tier used for Object Storage service data. Object Storage also supports private access from Oracle Cloud Infrastructure resources in a VCN through a service gateway.
+17. When you configure an Autoscaling policy, you have the option to select Memory Utilization as the performance metric. The question mentions that the application is memory intensive and performs poorly if enough memory is not available.
+18. Preauthenticated requests provide a way to let users access a bucket or an object without having their own credentials. Users continue to have access to the bucket or object as long as the creator of the request has permissions to access those resources.
+19. A NAT gateway gives cloud resources without public IP addresses access to the Internet without exposing those resources to incoming Internet connections.
+20. The Network Visualizer provides a diagram of the implemented topology of all VCNs in a selected region and tenancy.
+21. The VTAP target is the resource that you want the mirrored traffic to be sent to for further analysis. Currently, the only supported VTAP target is an OCI Network Load Balancer (NLB).
+22. The Standard tier is the primary, default storage tier used for Object Storage service data. The Standard storage tier is "hot" storage used for data that you need to access quickly, immediately, and frequently.
+23. Lower cost is recommended for throughput intensive workloads with large sequential I/O, such as streaming, log processing, and data warehouses.
+24. GPU shapes are designed for hardware-accelerated workloads. GPU shapes include Intel or AMD CPUs and NVIDIA graphics processors.
+25. Access to the Internet: Internet gateway - For public resources that need to be reached from the Internet NAT gateway - For resources that need to reach the Internet but are not reachable from the Internet.
+26. Each subnet can have multiple security lists associated with it. The default security list has a stateful ingress rule: Allow TCP traffic on destination port 22 (SSH) from authorized source IP addresses and any source port. You configure your security lists at the subnet level, which means that all VNICs in a given subnet are subject to the same set of security lists.
+27. The Mount Point Path refers to the specific directory on a client instance where the remote file system is mounted and accessed. This path serves as the gateway for interacting with the remote file system locally.
+28. Instance Principal is a special IAM identity assigned to a compute instance. It allows the instance to securely access resources within OCI without requiring any preconfigured credentials, such as usernames or passwords, on the instance itself. This eliminates the risk of credential exposure and strengthens security.
+29. It is clearly mentioned in the execution time that the policy should run on every Monday through Friday. Therefore, we can eliminate the options that mention "On all days of the week". Also the word "every" points to recurring. So we can eliminate the option that suggests "one-time schedule".
+30. Confidential computing encrypts and isolates in-use data and the applications processing that data. Confidential instances are compute virtual machines (VMs) or bare metal instances where both the data and the application processing the data are encrypted and isolated while the application processes the data, preventing unauthorized access or modification of either the data or the application.
+31. A cloned volume is a point-in-time direct disk-to-disk deep copy of the source volume, so all the data that is in the source volume when the clone is created is copied to the clone volume. The clone operation is faster than backup. Clone operation makes use of Block Volume as the Storage location. You can also clone a volume group.
+32. When you create a volume, by default, it is configured for the Balanced performance level.
+33. Auto-Tiering monitors data access patterns and helps you reduce storage costs by automatically moving objects larger than 1 MiB out of the Standard tier into the more cost-effective Infrequent Access tier.
+34. The Zero statement is used to completely remove access to a specific resource type within a compartment.
+35. Manage volumes includes the following permissions: VOLUME_INSPECT, VOLUME_UPDATE, VOLUME_WRITE, VOLUME_CREATE, VOLUME_MOVE, and VOLUME_DELETE As part of a policy statement, you can specify one or more conditions that must be met in order for access to be granted. In this policy all operations are allowed except deleting the volume.
+36. If object versioning is enabled on a bucket, and you upload an object with the same name as an existing object, the existing object becomes a previous version and the newly uploaded object becomes the latest version. Each uploaded object is assigned a unique version identifier.
+37. As you would like the NetworkAdmin group to manage a cloud network in any compartment, the location must be tenancy and the resource type must be a virtual-network-family resource type.
+38. When an administrator subscribes to another region, the Default identity domain automatically replicates to that region. Additional identity domains are created in a home region that's specified at creation time. They don't replicate to other regions unless replication is specifically enabled. You should enable replication if users in an identity domain need to interact with OCI resources in regions beyond that domain's home region.
+39. You can create subcompartments in compartments to create hierarchies that are six levels deep. An OCI resource can only belong to one compartment. Budgets are set on cost-tracking tags or compartments.
+40. When you launch a virtual machine (VM) or bare metal instance based on a platform image or custom image, a new boot volume for the instance is created in the same compartment. That boot volume is associated with that instance until you terminate the instance. When you terminate the instance, you can preserve the boot volume and its data. You can group boot volumes with block volumes into the same volume group.
+41. Stateless rules do not track connections, so they would not solve the problem. While instance principals and IAM policies are used for access control, they are not the correct method for this scenario. The issue is with the network configuration (security lists) rather than IAM. NFS export options specify access controls at the file system level, but do not address network level security. The issue is with network level security because the DB System cannot access the mount target.
+42. You can use VCN peering to divide your network into multiple VCNs (for example, based on departments or lines of business), with each VCN having direct, private access to the others. There's no need for traffic to flow over the Internet or through your on-premises network by way of a Site-to-Site VPN or FastConnect.
+43. If no route rule matches the network traffic you intend to route outside the VCN, the traffic is dropped (blackholed).
+44. Peering VCNs in different tenancies requires more IAM policies for cross-tenancy authorization. The two VCNs must not have overlapping CIDRs. You can establish private network communications between two or more virtual cloud networks (VCNs) in the same region by attaching them to a common dynamic routing gateway.
+45. Retention rules are configured at the bucket level and are applied to all individual objects in the bucket.
+46. The Silver policy includes weekly incremental backups that run on Sunday. These backups are retained for four weeks. This policy also includes monthly incremental backups, run on the first day of the month and are retained for 12 months. Also includes an incremental backup, run yearly during the first part of January. This backup is retained for five years.
+47. Each instance receives a primary private IP object during launch. A private IP can have a public IP assigned to it at your discretion. Secondary private IPs are automatically deleted when you terminate the instance (or detach/delete the secondary VNIC). You can add a secondary private IP to an instance after it's launched. You can add it to either the primary VNIC or a secondary VNIC on the instance.
+48. An autoscaling configuration includes one or more autoscaling policies. Each instance pool can have only one autoscaling configuration. Configuring a load balancer is optional. Metric-based autoscaling relies on performance metrics that are collected by the Monitoring service, such as CPU utilization.
+49. The File Storage service uses four different layers of access control: The Oracle Cloud Infrastructure (OCI) policy layer uses policies to control what users can do within Oracle Cloud Infrastructure, the Network security layer controls which instance IP addresses or CIDR blocks can connect to a host file system, the NFS export option layer is a method of applying access control per-file system export based on source IP address that bridges the Network Security layer, and the NFS v.3 UNIX security layer control what users can do on the instance.
+50. Border Gateway Protocol (BGP) exchanges routing and reachability information between autonomous systems (AS).
+
+
+
+
+
+
+That's a broad list — 23 topics with wrong answers. Let me categorize them by **risk level** based on common traps:
+
+---
+
+## HIGH RISK — Most Tricky Topics
+
+**IAM (3 topics hit)**
+- Dynamic Groups = for **resources only** (instances, functions) — NOT human users
+- Network Sources = restricts WHERE a policy applies (CIDR/VCN), not WHO
+- Tag-based access = uses `where` clause with defined tags
+- `any-group` = recommended over `any-user`
+- No aggregate type for identity resources (`identity-family` does NOT exist)
+
+**Load Balancer (1 topic hit)**
+- Regular LB = TCP (L4) + HTTP/HTTPS (L7) — **NO UDP**
+- NLB = TCP + **UDP** + ICMP — preserves source IP
+- WAA = Layer 7 **only** — caches HTTP 200 + GET/HEAD only
+- Compression requires caching to be enabled first
+
+**Block Volume (3 topics hit)**
+- Default tier = **Balanced** (not Lower Cost)
+- Lower Cost + Ultra High Perf = **NOT for boot volumes**
+- First backup ever = always **FULL**
+- Clone = same region/AD only; Backup = cross-region OK
+- Volume Group delete = deletes group **NOT** the volumes
+
+---
+
+## MEDIUM RISK
+
+**Object Storage (3 topics hit)**
+- Archive Bucket = Archive objects **only**
+- Bucket default tier = **cannot change** after creation
+- Auto-tiering moves objects > **1 MiB** from Standard → Infrequent Access
+- Object Storage Security: uses **PAR** (no credentials needed), **Retention Rules** (immutable), **Versioning**
+- PAR URL shown **once only**
+
+**Compute (2 topics hit)**
+- Flexible shape = **VM only** (no Bare Metal)
+- Preemptible = 50% cheaper, 30-second warning, **VM only**
+- Burstable = CPU bursts only, memory **never** bursts
+- DVH = billed when created, **not** for VMs on it
+- Autoscaling setup order: Config → Pool → Autoscaling Config
+
+**FastConnect (1 topic hit)**
+- Oracle Partner = **NO LOA** needed
+- Always uses **BGP** (mandatory)
+- Layer 3 partner = single VC is **auto-redundant**
+- Layer 2 partner = each VC needs **different physical router**
+- No egress charges (unlike VPN)
+
+---
+
+## FOCUS AREAS — Likely Specific Gaps
+
+| Topic | Key Thing to Re-check |
+|---|---|
+| **Inter-Region Latency** | 5-min avg, updates every 1 min, 30-day history, NOT tenancy-specific, NOT in single-region realms |
+| **Multipart Upload** | Min part = 10 MiB, Max parts = 10,000, single PUT max = 10 GiB, multipart max = 10 TiB |
+| **Site-to-Site VPN** | Tunnel Mode only (NOT Transport), 2 tunnels per connection, IKE v1+v2, BGP/static/policy-based |
+| **Cross-region replication** | Async, NOT real-time, replica billed at Lower Cost, network cost applies, subscribe to dest region first |
+| **File Snapshots/Clone** | Snapshot = zero storage initially; Clone = COW model, independent after creation |
+| **DNS Zones** | Public zone = 3 steps; Private zone = VCN only; 301=permanent, 302=temporary |
+| **Network Path Analyzer** | Identifies VCN **config issues**, troubleshoots connectivity — NOT a live traffic tool |
+| **VCN Connectivity** | DRG = cross-region + same-region; LPG = same-region only; Service Gateway = OCI services, no internet |
+
+---
+
+## Quick Action Plan
+
+1. **Re-read Section 1 (IAM)** fully — 3 IAM topics were wrong
+2. **Re-read Section 10/10+** — 3 block volume topics were wrong  
+3. **Re-read Section 5** — WAA + LB/NLB protocols
+4. **Re-read Section 9** — Object storage tiers + security + versioning
+5. Focus on **numbers** — multipart limits, latency dashboard timing, backup retention periods
+
+
+
+
